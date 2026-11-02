@@ -4,7 +4,7 @@
 
 - **รหัสนักศึกษา:** 66102316
 - **ชื่อ-สกุล:** คิรากร สุวรรณโกสุม
-- **เว็บไซต์:** https://murkyz1.github.io/csi301_assignment6/
+- **เว็บไซต์:** https://murkyz1.github.io/csi301-assignment7/
 - **Contract address:** `0xd943ABb1cE2b884FE06Fa3A2c7F6723F0724E1Ea`
 - **Network:** Sepolia Testnet
 
