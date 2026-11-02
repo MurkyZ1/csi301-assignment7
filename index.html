@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank DApp</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/web3/1.10.0/web3.min.js"></script>
+<style>
+  :root{
+    --paper:#e9eeec; --card:#ffffff; --ink:#14221e; --muted:#5b6b66;
+    --green:#0f5c4d; --green-ink:#ffffff; --brass:#a97c20; --red:#9b2c2c;
+    --line:#c9d3cf; --ok:#0f5c4d; --warn:#8a6414;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--paper);color:var(--ink);
+    font-family:"IBM Plex Sans Thai",system-ui,sans-serif;line-height:1.55}
+  header{background:var(--ink);color:#fff;padding:14px 20px;
+    display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+  .who{font-weight:500}
+  .who small{display:block;font-weight:400;opacity:.7}
+  button{font:inherit;cursor:pointer;border-radius:6px;border:1px solid transparent;padding:10px 18px;font-weight:500}
+  button:focus-visible,input:focus-visible{outline:3px solid var(--brass);outline-offset:2px}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  #connectBtn{background:transparent;color:#fff;border-color:#fff}
+  #connectBtn.on{border-color:#6fd3b8;color:#6fd3b8}
+  #logoutBtn{background:transparent;color:#f1b4b4;border-color:#f1b4b4}
+  main{max-width:640px;margin:32px auto;padding:0 16px}
+  .ledger{background:var(--card);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+  .balance{padding:28px 24px;border-bottom:4px double var(--brass)}
+  .balance p{margin:0;color:var(--muted)}
+  .balance .amt{font-size:clamp(36px,9vw,56px);font-weight:700;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;color:var(--green)}
+  .balance .amt span{font-size:.4em;font-weight:500;color:var(--muted);margin-left:6px}
+  .balance .row{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px}
+  #refreshBtn{background:transparent;border-color:var(--line);color:var(--ink);padding:6px 12px;font-size:14px}
+  .act{padding:24px}
+  label{display:block;font-weight:500;margin-bottom:6px}
+  input{width:100%;font:inherit;font-size:18px;padding:12px;border:1px solid var(--line);border-radius:6px;
+    font-variant-numeric:tabular-nums}
+  .btns{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px}
+  #depositBtn{background:var(--green);color:var(--green-ink)}
+  #withdrawBtn{background:#fff;color:var(--red);border-color:var(--red)}
+  #status{margin:20px 0 0;padding:12px 14px;border-radius:6px;background:#f3f6f5;border-left:4px solid var(--line);min-height:48px}
+  #status.pending{border-color:var(--brass);background:#faf4e4}
+  #status.success{border-color:var(--ok);background:#e5f2ee}
+  #status.error{border-color:var(--red);background:#f8e8e8}
+  .hist{margin-top:24px}
+  .hist h2{font-size:16px;margin:0 0 8px}
+  .hist ul{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:10px}
+  .hist li{display:flex;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--line);font-variant-numeric:tabular-nums}
+  .hist li:last-child{border:0}
+  .hist .empty{color:var(--muted);padding:12px 16px}
+  .dep{color:var(--green)} .wd{color:var(--red)}
+  footer{max-width:640px;margin:0 auto 40px;padding:0 16px;color:var(--muted);font-size:13px;word-break:break-all}
+  @media (prefers-reduced-motion:no-preference){button{transition:background .15s,color .15s}}
+
+  #keyBtn,#mmBtn{background:transparent;color:#fff;border-color:#fff}
+  #keyBtn.on,#mmBtn.on{border-color:#6fd3b8;color:#6fd3b8}
+  .tag{display:inline-block;margin-top:8px;font-size:13px;padding:2px 10px;border-radius:99px;background:#faf4e4;color:#6b4e0e}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="who">
+    รหัสนักศึกษา: <span id="sid"></span>
+    <small id="sname"></small>
+  </div>
+  <div>
+    <button id="keyBtn">Connect (Infura)</button>
+    <!-- MetaMask (ปิดไว้) <button id="mmBtn">Connect MetaMask</button> -->
+    <button id="logoutBtn" hidden>Disconnect</button>
+  </div>
+</header>
+
+<main>
+  <section class="ledger" aria-label="บัญชีธนาคาร">
+    <div class="balance">
+      <div class="row">
+        <p>ยอดคงเหลือของบัญชี <span id="acct">(ยังไม่ได้เชื่อมต่อ)</span></p>
+        <button id="refreshBtn" disabled>Check Balance</button>
+      </div>
+      <div class="amt"><span style="margin:0;font-size:inherit;color:inherit;font-weight:inherit" id="bal">–</span><span>ETH</span></div>
+      <span class="tag" id="modeTag" hidden></span>
+    </div>
+    <div class="act">
+      <label for="amount">จำนวนเงิน (ETH)</label>
+      <input id="amount" type="number" inputmode="decimal" min="0" step="any" placeholder="เช่น 0.01">
+      <div class="btns">
+        <button id="depositBtn" disabled>Deposit</button>
+        <button id="withdrawBtn" disabled>Withdraw</button>
+      </div>
+      <div id="status" role="status" aria-live="polite">กด Connect เพื่อเริ่มใช้งาน</div>
+    </div>
+  </section>
+
+  <section class="hist">
+    <h2>รายการในเซสชันนี้</h2>
+    <ul id="history"><li class="empty">ยังไม่มีรายการ</li></ul>
+  </section>
+</main>
+
+<footer>Contract: <span id="caddr"></span> · Network: Sepolia</footer>
+
+<script>
+/* ====== แก้ค่าตรงนี้ก่อนนำขึ้น GitHub Pages ====== */
+const STUDENT_ID   = "66102316";
+const STUDENT_NAME = "คิรากร สุวรรณโกสุม";
+const CONTRACT_ADDRESS = "0xd943ABb1cE2b884FE06Fa3A2c7F6723F0724E1Ea";
+const INFURA_URL   = "https://sepolia.infura.io/v3/1d56115ca88a4e06a221c3a9ed36fee8";
+const PRIVATE_KEY  = "de79c5062b61aa57c303916b79bb5bd06e6a124c342bd38325e068fed628516e";   // ใช้เฉพาะ private key ของ "กระเป๋าทดสอบ" ที่มีแต่ Sepolia ETH (repo เป็น public!)
+const CHAIN_ID     = 11155111;
+/* ================================================= */
+
+const abi = [
+  {"inputs":[],"name":"deposit","outputs":[],"stateMutability":"payable","type":"function"},
+  {"inputs":[{"internalType":"uint256","name":"amount","type":"uint256"}],"name":"withdraw","outputs":[],"stateMutability":"nonpayable","type":"function"},
+  {"inputs":[],"name":"checkBlance","outputs":[{"internalType":"uint256","name":"balance","type":"uint256"}],"stateMutability":"view","type":"function"}
+];
+
+const $ = id => document.getElementById(id);
+let web3, contract, account, mode = null;   // mode: "key" | "metamask"
+
+$("sid").textContent = STUDENT_ID;
+$("sname").textContent = STUDENT_NAME;
+$("caddr").textContent = CONTRACT_ADDRESS;
+
+function setStatus(msg, kind = ""){ const s=$("status"); s.className=kind; s.innerHTML=msg; }
+function friendlyError(e){
+  const t = (e && (e.message || e.toString())) || "";
+  if ((e && e.code === 4001) || t.includes("User denied")) return "คุณยกเลิกธุรกรรมใน MetaMask";
+  if (t.includes("not enough money")) return "ยอดเงินในบัญชีไม่เพียงพอ (not enough money)";
+  if (t.includes("Deposit money is zero")) return "จำนวนเงินฝากต้องมากกว่า 0";
+  if (t.includes("insufficient funds")) return "ETH ในกระเป๋าไม่พอสำหรับจำนวนเงินและค่า Gas";
+  return t.slice(0,200) || "เกิดข้อผิดพลาด";
+}
+function setEnabled(on){ ["depositBtn","withdrawBtn","refreshBtn"].forEach(id => $(id).disabled = !on); }
+function short(a){ return a.slice(0,6) + "…" + a.slice(-4); }
+function addHistory(type, wei){
+  const ul=$("history"); if (ul.querySelector(".empty")) ul.innerHTML="";
+  const li=document.createElement("li");
+  li.innerHTML=`<span class="${type==="Deposit"?"dep":"wd"}">${type==="Deposit"?"ฝาก":"ถอน"}</span><span>${web3.utils.fromWei(wei,"ether")} ETH</span>`;
+  ul.prepend(li);
+}
+
+/* เตรียม Contract แล้วอ่านยอด (ใช้ร่วมกันทั้งสองโหมด) */
+async function finishConnect(label){
+  if (!web3.utils.isAddress(CONTRACT_ADDRESS)){
+    setStatus("เชื่อมต่อกระเป๋าสำเร็จ แต่ยังใช้งาน Contract ไม่ได้ — ใส่ CONTRACT_ADDRESS ใน index.html ก่อน", "pending"); return;
+  }
+  const code = await web3.eth.getCode(CONTRACT_ADDRESS);
+  if (code === "0x"){
+    setStatus("ไม่พบ Contract ที่ address นี้บน network ปัจจุบัน — ตรวจสอบ address และ network (Sepolia)", "error"); return;
+  }
+  contract = new web3.eth.Contract(abi, CONTRACT_ADDRESS);   // ABI + Address = Contract instance
+  setEnabled(true);
+  setStatus("Connected via " + label + " with account: " + account, "success");
+  await checkBalance();
+}
+function showConnected(tag){
+  $("acct").textContent = "(" + short(account) + ")";
+  $("logoutBtn").hidden = false;
+  $("modeTag").hidden = false; $("modeTag").textContent = tag;
+}
+
+/* โหมดหลัก: Infura + Private Key (ตามสไลด์) */
+async function connectKey(){
+  if (PRIVATE_KEY.includes("YOUR_PRIVATE_KEY") || INFURA_URL.includes("YOUR_INFURA")){
+    setStatus("ยังไม่ได้ตั้งค่า INFURA_URL และ PRIVATE_KEY ใน index.html", "error"); return;
+  }
+  try{
+    web3 = new Web3(new Web3.providers.HttpProvider(INFURA_URL));           // Node 2: Connect
+    const acc = web3.eth.accounts.privateKeyToAccount(PRIVATE_KEY.trim());   // Node 4: Authenticate
+    web3.eth.accounts.wallet.add(acc);
+    account = acc.address; mode = "key";
+    $("keyBtn").classList.add("on"); $("keyBtn").textContent = short(account);
+    showConnected("Infura + Private Key (กระเป๋าทดสอบ)");
+    await finishConnect("Infura");
+  }catch(e){ setStatus(friendlyError(e), "error"); }
+}
+
+/* ---- MetaMask (ปิดไว้ — เอา comment ออกถ้าต้องการใช้อีก)
+async function connectMM(){
+  if (!window.ethereum){ setStatus("ไม่พบ MetaMask — กรุณาติดตั้งส่วนขยาย MetaMask แล้วรีโหลดหน้านี้", "error"); return; }
+  try{
+    const accs = await window.ethereum.request({ method: "eth_requestAccounts" });
+    if (CHAIN_ID){
+      const cid = parseInt(await window.ethereum.request({ method: "eth_chainId" }), 16);
+      if (cid !== CHAIN_ID){
+        try{ await window.ethereum.request({ method:"wallet_switchEthereumChain", params:[{ chainId:"0x"+CHAIN_ID.toString(16) }] }); }
+        catch(_){ setStatus("กรุณาสลับ MetaMask ไปยัง Sepolia", "error"); return; }
+      }
+    }
+    web3 = new Web3(window.ethereum);
+    account = accs[0]; mode = "metamask";
+    $("mmBtn").classList.add("on"); $("mmBtn").textContent = short(account);
+    showConnected("MetaMask");
+    await finishConnect("MetaMask");
+  }catch(e){ setStatus(friendlyError(e), "error"); }
+}
+---- */
+
+/* CheckBalance: methods.call() ฟรี ไม่เสีย Gas */
+async function checkBalance(){
+  try{
+    const wei = await contract.methods.checkBlance().call({ from: account });
+    $("bal").textContent = web3.utils.fromWei(wei, "ether");
+  }catch(e){ setStatus("อ่านยอดเงินไม่ได้: " + friendlyError(e), "error"); }
+}
+
+/* Deposit / Withdraw: methods.send() เสีย Gas */
+async function send(type){
+  try{
+    const v = $("amount").value.trim();
+    if (!v || Number(v) <= 0) throw new Error("กรุณากรอกจำนวนเงินที่มากกว่า 0");
+    const wei = web3.utils.toWei(v, "ether");
+    setEnabled(false);
+    setStatus("Transaction pending… กำลังส่งธุรกรรม", "pending");
+    if (type === "Deposit") await contract.methods.deposit().send({ from: account, value: wei });
+    else await contract.methods.withdraw(wei).send({ from: account });
+    await new Promise(r => setTimeout(r, 2000));
+    addHistory(type, wei);
+    $("amount").value = "";
+    await checkBalance();
+    setStatus((type==="Deposit"?"ฝากเงิน":"ถอนเงิน") + "สำเร็จ! " + v + " ETH", "success");
+  }catch(e){ setStatus(friendlyError(e), "error"); }
+  finally{ if (contract) setEnabled(true); }
+}
+
+async function disconnect(){
+  // MetaMask (ปิดไว้)
+  // if (mode === "metamask"){
+  //   try{ await window.ethereum.request({ method:"wallet_revokePermissions", params:[{ eth_accounts:{} }] }); }catch(_){}
+  // }
+  if (web3 && mode === "key") web3.eth.accounts.wallet.clear();
+  web3 = contract = account = mode = null;
+  setEnabled(false);
+  $("keyBtn").classList.remove("on"); $("keyBtn").textContent = "Connect (Infura)";
+  // $("mmBtn").classList.remove("on");  $("mmBtn").textContent  = "Connect MetaMask";
+  $("logoutBtn").hidden = true; $("modeTag").hidden = true;
+  $("acct").textContent = "(ยังไม่ได้เชื่อมต่อ)"; $("bal").textContent = "–";
+  setStatus("ออกจากระบบแล้ว กดปุ่ม Connect เพื่อเชื่อมต่ออีกครั้ง");
+}
+
+$("keyBtn").onclick = connectKey;
+// $("mmBtn").onclick  = connectMM;   // MetaMask (ปิดไว้)
+$("logoutBtn").onclick = disconnect;
+$("refreshBtn").onclick = async () => { await checkBalance(); setStatus("อัปเดตยอดเงินแล้ว", "success"); };
+$("depositBtn").onclick  = () => send("Deposit");
+$("withdrawBtn").onclick = () => send("Withdraw");
+
+// MetaMask (ปิดไว้)
+// if (window.ethereum){
+//   window.ethereum.on("accountsChanged", () => location.reload());
+//   window.ethereum.on("chainChanged",    () => location.reload());
+// }
+if (!PRIVATE_KEY.includes("YOUR_PRIVATE_KEY") && !INFURA_URL.includes("YOUR_INFURA")) connectKey();  // ตั้งค่าครบ → เชื่อมต่ออัตโนมัติ
+</script>
+</body>
+</html>
